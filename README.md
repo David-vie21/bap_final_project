@@ -6,6 +6,8 @@ monitoring, performance testing & tuning - task: build mini setup with single ap
 2. Set Up Prometheus for Monetoring
 3. Set up gatling for Tests
 4. Set Up grafana for visualision
+5. Tunning
+6. Logging
 
 ## 1. API
 I will use an old java api from an internship - todo_test api
@@ -565,5 +567,318 @@ Please open the following file: /app/target/gatling/yourgatlingsimulation-counte
 ![](/load/07%20_Grafana_CounterIncreasTest_Gatling.PNG)
 
 
+# 5. Tunning
+
+docker stats
 
 
+CONTAINER ID   NAME                     CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O   PIDS
+75dec59ec0ff   todo_test-java-api-1     0.24%     319.6MiB / 12.45GiB   2.51%     143MB / 4.76MB    0B / 0B     44
+4e87a5e636a6   todo_test-grafana-1      0.19%     67.58MiB / 12.45GiB   0.53%     458kB / 504kB     0B / 0B     21
+367f3d328bac   todo_test-prometheus-1   0.00%     36.61MiB / 12.45GiB   0.29%     3.39MB / 161kB    0B / 0B     12
+c654b435b02e   todo_test-database-1     0.03%     47.58MiB / 12.45GiB   0.37%     35.4kB / 33.6kB   0B / 0B     16
+
+
+
+I combiend two steps of the docker file to one 
+
+#COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml /app/
+#COPY src/test/scala/YourGatlingSimulation.scala /app/src/test/scala/YourGatlingSimulation.scala 
+
+=>
+
+COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml src/test/scala/YourGatlingSimulation.scala /app/
+
+
+but it donst worked because i needed different locations for the files
+
+
+I gave the API and the database 2 cps each
+  database:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    cpus: 2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: BAPTest
+    networks:
+      prometheus-net:
+        aliases:
+          - database
+
+
+  java-api:
+    build: .
+    #image: todo_test 
+    ports:
+      - "8080:8080"
+    networks:
+      prometheus-net:
+        aliases:
+          - api
+    depends_on:
+      -  database
+    cpus: 2
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/BAPTest
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+
+================================================================================
+2024-04-13 13:53:28                                           2s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=10     KO=1     )
+> counterIncrease                                          (OK=0      KO=1     )
+> increaseCounter                                          (OK=10     KO=0     )
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+
+---- Scenario_Counter ----------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1     
+================================================================================
+
+Simulation YourGatlingSimulation_Counter completed in 0 seconds
+Parsing log file(s)...
+Parsing log file(s) done
+Generating reports...
+
+================================================================================
+---- Global Information --------------------------------------------------------
+> request count                                         11 (OK=10     KO=1     )
+> min response time                                      5 (OK=5      KO=34    )
+> max response time                                     45 (OK=45     KO=34    )
+> mean response time                                    14 (OK=12     KO=34    )
+> std deviation                                         13 (OK=12     KO=0     )
+> response time 50th percentile                          7 (OK=7      KO=34    )
+> response time 75th percentile                         16 (OK=8      KO=34    )
+> response time 95th percentile                         40 (OK=36     KO=34    )
+> response time 99th percentile                         44 (OK=43     KO=34    )
+> mean requests/sec                                     11 (OK=10     KO=1     )
+---- Response Time Distribution ------------------------------------------------
+> t < 800 ms                                            10 ( 91%)
+> 800 ms < t < 1200 ms                                   0 (  0%)
+> t > 1200 ms                                            0 (  0%)
+> failed                                                 1 (  9%)
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+================================================================================
+
+Reports generated in 0s.
+Please open the following file: /app/target/gatling/yourgatlingsimulation-counter-20240413135325638/index.html
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  15.294 s
+[INFO] Finished at: 2024-04-13T13:53:28Z
+[INFO] ------------------------------------------------------------------------
+
+
+- The distribution of time donst chang, propably because its not precisely enouth
+
+- But the percentile changed:
+
+- mean requests/sec hasnt changed
+
+- min response time    old: 5ms     new: 5ms
+- max response time    old: 121ms   new: 45ms
+- mean response time   old: 20ms    new: 14
+- std deviation        old: 32      new: 13
+
+
+When the tests run my cpu usage goes up to 99%
+
+## Conclusion Tunning
+
+The increas from 1 to 2 cpus at the API and the database increased the mean response time 20ms to 14ms, thats an decrease from time by 30%!
+And the std (standart devision) is a 1/3 from the old one. thats much better.
+
+### 2 try tunning tests
+
+i tried the again with 1 cpu:
+
+
+================================================================================
+---- Global Information --------------------------------------------------------
+> request count                                         11 (OK=10     KO=1     )
+> min response time                                      7 (OK=7      KO=101   )
+> max response time                                    101 (OK=11     KO=101   )
+> mean response time                                    17 (OK=8      KO=101   )
+> std deviation                                         27 (OK=1      KO=0     )
+> response time 50th percentile                          8 (OK=8      KO=101   )
+> response time 75th percentile                          9 (OK=9      KO=101   )
+> response time 95th percentile                         56 (OK=10     KO=101   )
+> response time 99th percentile                         92 (OK=11     KO=101   )
+> mean requests/sec                                     11 (OK=10     KO=1     )
+---- Response Time Distribution ------------------------------------------------
+> t < 800 ms                                            10 ( 91%)
+> 800 ms < t < 1200 ms                                   0 (  0%)
+> t > 1200 ms                                            0 (  0%)
+> failed                                                 1 (  9%)
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+================================================================================
+
+Reports generated in 0s.
+Please open the following file: /app/target/gatling/yourgatlingsimulation-counter-20240413145259469/index.html
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  12.971 s
+[INFO] Finished at: 2024-04-13T14:53:02Z
+
+As you see the max response time is up to 101ms and the mean to 17ms again.
+
+
+
+
+# 6. Logging
+@Autowired
+private static final Logger logger = LoggerFactory.getLogger(Todo_Controller.class);
+
+@GetMapping("/counterIncrease")
+    public double increaseCounter() {
+        requests.increment();
+        //++counter;
+        //System.out.println(counter);
+        System.out.println(requests);
+        logger.info("Counter increased. Current count: {}", requests.count());
+        return requests.count();
+    }
+
+## Docker logstash
+
+Dockercompose:
+
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.2
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logstash/config:/usr/share/logstash/config
+    environment:
+      - "LOGSTASH_JAVA_OPTS=-Xmx256m -Xms256m"
+    networks:
+      prometheus-net:
+        aliases:
+          - logging
+
+log config for elastic in logstash.conf:
+
+input {
+  tcp {
+    port => 5000
+    codec => json_lines
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["elasticsearch:9200"]
+    index => "spring-logs-%{+YYYY.MM.dd}"
+  }
+}
+
+
+
+logback config in logback.xml:
+
+<appender name="logstash" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+  <destination>logging:5000</destination>
+  <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+</appender>
+
+<root level="INFO">
+  <appender-ref ref="logstash" />
+  <!-- Optional: Weiterhin Log-Nachrichten auf der Konsole anzeigen -->
+  <appender-ref ref="CONSOLE" />
+</root>
+
+
+
+
+### Elastic UI - Kibana
+Docker compose:
+
+kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.2
+    ports:
+      - "5601:5601"
+    environment:
+      - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+    networks:
+      - prometheus-net
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    ports:
+      - "9200:9200"
+    environment:
+      - "discovery.type=single-node"
+    networks:
+      - prometheus-net
+
+
+
+
+afer a lot of bugs i changed the logback settings:
+
+<Configuration>
+<Appenders>
+  <Socket name="Socket" host="logging" port="5000">
+    <JsonLayout compact="true" eventEol="true" />
+  </Socket>
+</Appenders>
+<Loggers>
+  <Root level="info">
+    <AppenderRef ref="Socket"/>
+  </Root>
+</Loggers>
+</Configuration>
+
+and the logstash.conf
+
+
+input {
+  tcp {
+    port => 5000
+    codec => "json"
+  }
+}
+
+output {
+  elasticsearch {
+    index => "spring-logs-%{+YYYY.MM.dd}"
+    hosts => ["elasticsearch:9200"]
+  }
+}
+
+
+I got it to start 
+![](/load/08_Kibana_Start.PNG)
+
+But 2024-04-13 19:28:32 {"@timestamp":"2024-04-13T17:28:32.034Z", "log.level":"ERROR", "message":"node validation exception\n[1] bootstrap checks failed. You must address the points described in the following [1] lines before starting Elasticsearch. For more information see [https://www.elastic.co/guide/en/elasticsearch/reference/8.13/bootstrap-checks.html]\nbootstrap check failure [1] of [1]: max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/8.13/_maximum_map_count_check.html]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"6e8e74fed1f8","elasticsearch.cluster.name":"docker-cluster"}
+
+
+
+#### Ich finde dazu nur das ich die max_map_count auf meinem host system höher stellen muss, oder dem container mehr memory gebe, aber mein memory ist leider komplet ausgelasstet
+CONTAINER ID   NAME                        CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O   PIDS
+2ac9e92dd760   todo_test-grafana-1         0.30%     77.51MiB / 12.45GiB   0.61%     19.2kB / 4.16kB   0B / 0B     21
+f4dbb117fd15   todo_test-java-api-1        0.25%     251.7MiB / 12.45GiB   1.97%     45.6kB / 645kB    0B / 0B     37
+5ce6b3b70bbd   todo_test-kibana-1          1.39%     227.1MiB / 12.45GiB   1.78%     19.1kB / 35.2kB   0B / 0B     12
+6dab7cd4098a   todo_test-logstash-1        2.89%     619.7MiB / 12.45GiB   4.86%     7.06kB / 10.4kB   0B / 0B     58
+6d4514bfc9de   todo_test-database-1        0.00%     50.92MiB / 12.45GiB   0.40%     22.1kB / 19.6kB   0B / 0B     16
+52fd73126e17   todo_test-prometheus-1      0.00%     43.64MiB / 12.45GiB   0.34%     625kB / 21.7kB    0B / 0B     11
+6e8e74fed1f8   todo_test-elasticsearch-1   220.53%   6.629GiB / 12.45GiB   53.26%    3.27kB / 1.84kB   0B / 0B     47
+
+
+#### ich habe alles anderen prozesse auf meinem PC geschlossen aber ich habe immer noch nicht genug memory
