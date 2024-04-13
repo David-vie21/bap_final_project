@@ -506,7 +506,7 @@ grafana:
 ### 4.2 Counter Test
 ![](/load/06%20_Grafana_CounterIncreasTest.PNG)
 
-
+```bash
 Simulation YourGatlingSimulation_Counter started...
 12:40:38.258 [gatling-http-1-2][WARN ][StatsProcessor.scala:114] i.g.h.e.r.DefaultStatsProcessor - Request 'counterIncrease' failed for user 1: status.find.in(200,201,202,203,204,205,206,207,208,209,304), found 404
 
@@ -560,9 +560,10 @@ Please open the following file: /app/target/gatling/yourgatlingsimulation-counte
 [INFO] Total time:  01:16 min
 [INFO] Finished at: 2024-04-13T12:40:39Z
 [INFO] ------------------------------------------------------------------------
-
+```
 
 ![](/load/07%20_Grafana_CounterIncreasTest_Gatling.PNG)
+
 
 
 
