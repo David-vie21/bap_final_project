@@ -9,6 +9,22 @@ monitoring, performance testing & tuning - task: build mini setup with single ap
 5. Tunning
 6. Logging
 
+#### Used Links:
+API
+- http://localhost:8080/getID/1
+- http://localhost:8080/counterIncrease
+- http://localhost:8080/actuator/prometheus
+
+Prometheus
+- http://localhost:9090/graph  
+
+Grafana
+- http://localhost:3000/    
+
+Elastic - Kibana:
+http://localhost:5601
+http://localhost:5601/?code=<token>
+
 ## 1. API
 I will use an old java api from an internship - todo_test api
 
@@ -581,19 +597,22 @@ c654b435b02e   todo_test-database-1     0.03%     47.58MiB / 12.45GiB   0.37%   
 
 
 I combiend two steps of the docker file to one 
+```bash
 
-#COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml /app/
-#COPY src/test/scala/YourGatlingSimulation.scala /app/src/test/scala/YourGatlingSimulation.scala 
+COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml /app/
+COPY src/test/scala/YourGatlingSimulation.scala /app/src/test/scala/YourGatlingSimulation.scala 
 
 =>
 
 COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml src/test/scala/YourGatlingSimulation.scala /app/
 
+```
 
 but it donst worked because i needed different locations for the files
 
 
 I gave the API and the database 2 cps each
+```bash
   database:
     image: postgres:15-alpine
     ports:
@@ -625,7 +644,9 @@ I gave the API and the database 2 cps each
       SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/BAPTest
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+```
 
+```bash
 
 ================================================================================
 2024-04-13 13:53:28                                           2s elapsed
@@ -678,6 +699,7 @@ Please open the following file: /app/target/gatling/yourgatlingsimulation-counte
 [INFO] Finished at: 2024-04-13T13:53:28Z
 [INFO] ------------------------------------------------------------------------
 
+```
 
 - The distribution of time donst chang, propably because its not precisely enouth
 
@@ -700,8 +722,9 @@ And the std (standart devision) is a 1/3 from the old one. thats much better.
 
 ### 2 try tunning tests
 
-i tried the again with 1 cpu:
+i tried the again with 1 cpu: to verify to increas
 
+```bash
 
 ================================================================================
 ---- Global Information --------------------------------------------------------
@@ -732,6 +755,7 @@ Please open the following file: /app/target/gatling/yourgatlingsimulation-counte
 [INFO] ------------------------------------------------------------------------
 [INFO] Total time:  12.971 s
 [INFO] Finished at: 2024-04-13T14:53:02Z
+```
 
 As you see the max response time is up to 101ms and the mean to 17ms again.
 
@@ -739,6 +763,7 @@ As you see the max response time is up to 101ms and the mean to 17ms again.
 
 
 # 6. Logging
+```bash
 @Autowired
 private static final Logger logger = LoggerFactory.getLogger(Todo_Controller.class);
 
@@ -751,11 +776,13 @@ private static final Logger logger = LoggerFactory.getLogger(Todo_Controller.cla
         logger.info("Counter increased. Current count: {}", requests.count());
         return requests.count();
     }
+```
 
 ## Docker logstash
 
 Dockercompose:
 
+```bash
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.13.2
@@ -769,6 +796,7 @@ Dockercompose:
       prometheus-net:
         aliases:
           - logging
+```
 
 log config for elastic in logstash.conf:
 
@@ -789,6 +817,7 @@ output {
 
 
 logback config in logback.xml:
+```xml
 
 <appender name="logstash" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
   <destination>logging:5000</destination>
@@ -802,10 +831,12 @@ logback config in logback.xml:
 </root>
 
 
+```
 
 
 ### Elastic UI - Kibana
 Docker compose:
+```bash
 
 kibana:
     image: docker.elastic.co/kibana/kibana:8.13.2
@@ -826,6 +857,7 @@ kibana:
       - "discovery.type=single-node"
     networks:
       - prometheus-net
+```
 
 
 
@@ -847,6 +879,7 @@ afer a lot of bugs i changed the logback settings:
 
 and the logstash.conf
 
+```bash
 
 input {
   tcp {
@@ -862,15 +895,20 @@ output {
   }
 }
 
+```
 
 I got it to start 
 ![](/load/08_Kibana_Start.PNG)
 
+### Failed because to low RAM
+```bash
 But 2024-04-13 19:28:32 {"@timestamp":"2024-04-13T17:28:32.034Z", "log.level":"ERROR", "message":"node validation exception\n[1] bootstrap checks failed. You must address the points described in the following [1] lines before starting Elasticsearch. For more information see [https://www.elastic.co/guide/en/elasticsearch/reference/8.13/bootstrap-checks.html]\nbootstrap check failure [1] of [1]: max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]; for more information see [https://www.elastic.co/guide/en/elasticsearch/reference/8.13/_maximum_map_count_check.html]", "ecs.version": "1.2.0","service.name":"ES_ECS","event.dataset":"elasticsearch.server","process.thread.name":"main","log.logger":"org.elasticsearch.bootstrap.Elasticsearch","elasticsearch.node.name":"6e8e74fed1f8","elasticsearch.cluster.name":"docker-cluster"}
+```
 
 
 
-#### Ich finde dazu nur das ich die max_map_count auf meinem host system höher stellen muss, oder dem container mehr memory gebe, aber mein memory ist leider komplet ausgelasstet
+##### Ich finde dazu nur das ich die max_map_count auf meinem host system höher stellen muss, oder dem container mehr memory gebe, aber mein memory ist leider komplet ausgelasstet
+```bash
 CONTAINER ID   NAME                        CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O   PIDS
 2ac9e92dd760   todo_test-grafana-1         0.30%     77.51MiB / 12.45GiB   0.61%     19.2kB / 4.16kB   0B / 0B     21
 f4dbb117fd15   todo_test-java-api-1        0.25%     251.7MiB / 12.45GiB   1.97%     45.6kB / 645kB    0B / 0B     37
@@ -879,6 +917,7 @@ f4dbb117fd15   todo_test-java-api-1        0.25%     251.7MiB / 12.45GiB   1.97%
 6d4514bfc9de   todo_test-database-1        0.00%     50.92MiB / 12.45GiB   0.40%     22.1kB / 19.6kB   0B / 0B     16
 52fd73126e17   todo_test-prometheus-1      0.00%     43.64MiB / 12.45GiB   0.34%     625kB / 21.7kB    0B / 0B     11
 6e8e74fed1f8   todo_test-elasticsearch-1   220.53%   6.629GiB / 12.45GiB   53.26%    3.27kB / 1.84kB   0B / 0B     47
+```
 
 
-#### ich habe alles anderen prozesse auf meinem PC geschlossen aber ich habe immer noch nicht genug memory
+##### ich habe alles anderen prozesse auf meinem PC geschlossen aber ich habe immer noch nicht genug memory
