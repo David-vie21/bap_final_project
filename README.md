@@ -1,0 +1,568 @@
+# Task Final Semester - Ankenbrand - BAP - 5BHIF
+Task:
+monitoring, performance testing & tuning - task: build mini setup with single application with monitoring (prometheus etc.) and logging (elastic. )
+
+1. Set Up simple Java-API
+2. Set Up Prometheus for Monetoring
+3. Set up gatling for Tests
+4. Set Up grafana for visualision
+
+## 1. API
+I will use an old java api from an internship - todo_test api
+
+The API is an Todo list with the endpoints:
+- /getAll
+- /getId
+- /getTitle
+- /Del/Id
+- /patch/ID
+
+### dockerize the api:
+```bash
+Dockerfile:
+
+FROM openjdk:18-alpine
+
+WORKDIR /app
+
+COPY target/todo_test-0.0.1-SNAPSHOT.jar app.jar
+
+EXPOSE 8080
+
+CMD ["java", "-jar", "app.jar"]
+
+```
+
+## 2. Prometheus
+first of all i set up Prometheus in the app
+```xml
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>io.micrometer</groupId>
+    <artifactId>micrometer-registry-prometheus</artifactId>
+    <scope>runtime</scope>
+</dependency>
+
+```
+then i  dockerize the whole thing over docker-compose:
+```bash
+
+version: "3.9"
+
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    
+    networks:
+      - prometheus-net
+
+  database:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: BAPTest
+    networks:
+      prometheus-net:
+        aliases:
+          - database
+
+
+  java-api:
+    build: .
+    #image: todo_test 
+    ports:
+      - "8080:8080"
+    networks:
+      prometheus-net:
+        aliases:
+          - api
+    depends_on:
+      -  database
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/BAPTest
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+
+```
+
+
+networks:
+  prometheus-net:
+
+
+
+There were a lot of bugs an problmes to solve, but now it works just fine!
+I had to change the prometheus.yml file because the metrixes got exposed to /actuator/prometheus and prometheus try /mertrix
+
+    global:
+      scrape_interval:     15s
+    
+    scrape_configs:
+      - job_name: 'spring-boot-app'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets: ['api:8080']
+
+### Target
+![](/load/01%20prometheus%20target%20.PNG)
+### Graph
+![](/load/02%20prometheus%20graph.PNG)
+
+## 3. Gatling
+
+Pom.xml
+
+
+```xml
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>io.gatling</groupId>
+				<artifactId>gatling-maven-plugin</artifactId>
+				<version>3.1.2</version>
+				<configuration>
+					<simulationClass>YourGatlingSimulation</simulationClass>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+```
+
+## The Simulation
+```java
+
+class YourGatlingSimulation extends Simulation {
+
+  val httpProtocol = http.baseUrl("http://localhost:8080")
+
+  val scn = scenario("YourScenario")
+    .repeat(10) {
+      exec(http("GetID")
+        .get("/getID/1"))
+    }
+    .exec(http("GetAll")
+            .get("/getAll"))
+    .exec(http("Startpage")
+                .get("/"))
+    .exec(http("getTitel")
+                .get("/getTitel/Test_titel"))
+
+
+  private val modelJsonString: String =
+    s"""
+       |{
+       |  "Id": 10,
+       |  "createdate": "2022-09-23 00:00:00.0",
+       |  "desci": "test_des",
+       |  "done": false,
+       |  "endDate": "2022-09-25 00:00:00.0",
+       |  "lastupdate": "2022-09-23 00:00:00.0",
+       |  "priority": 1,
+       |  "startDate": "2022-09-23 00:00:00.0",
+       |  "title": "Test_titel"
+       |}
+       |""".stripMargin
+
+
+  private val scn2 = scenario("POST")
+    .exec(http("PostModel")
+      .post("/todoPost")
+      .body(StringBody(modelJsonString)).asJson)
+    .pause(5)
+    .exec(http("GetModel_after_Post")
+      .get("/getID/10"))
+
+  setUp(
+    scn.inject(atOnceUsers(1)).protocols(httpProtocol),
+    scn2.inject(atOnceUsers(1)).protocols(httpProtocol)
+  )}
+```
+
+
+
+```bash
+Simulation YourGatlingSimulation started...
+
+================================================================================
+2024-01-20 16:27:49                                           5s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=0      KO=0     )
+
+
+---- YourScenario --------------------------------------------------------------
+[--------------------------------------------------------------------------]  0%
+          waiting: 0      / active: 1      / done: 0
+================================================================================
+
+
+================================================================================
+2024-01-20 16:27:53                                          10s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=0      KO=0     )
+
+
+---- YourScenario --------------------------------------------------------------
+[--------------------------------------------------------------------------]  0%
+          waiting: 0      / active: 1      / done: 0
+================================================================================
+
+
+================================================================================
+2024-01-20 16:27:59                                          15s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=0      KO=0     )
+
+
+---- YourScenario --------------------------------------------------------------
+[--------------------------------------------------------------------------]  0%
+          waiting: 0      / active: 1      / done: 0
+================================================================================
+
+
+================================================================================
+2024-01-20 16:28:02                                          18s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=0      KO=1     )
+> GetID                                                    (OK=0      KO=1     )
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100,0%)
+ound 500
+
+---- YourScenario --------------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1
+================================================================================
+
+Simulation YourGatlingSimulation completed in 15 seconds
+Parsing log file(s)...
+Parsing log file(s) done
+Generating reports...
+
+================================================================================
+---- Global Information --------------------------------------------------------
+> request count                                          1 (OK=0      KO=1     )
+> min response time                                  15628 (OK=-      KO=15628 )
+> max response time                                  15628 (OK=-      KO=15628 )
+> mean response time                                 15628 (OK=-      KO=15628 )
+> std deviation                                          0 (OK=-      KO=0     )
+> response time 50th percentile                      15628 (OK=-      KO=15628 )
+> response time 75th percentile                      15628 (OK=-      KO=15628 )
+> response time 95th percentile                      15628 (OK=-      KO=15628 )
+> response time 99th percentile                      15628 (OK=-      KO=15628 )
+> mean requests/sec                                  0.062 (OK=-      KO=0.062 )
+---- Response Time Distribution ------------------------------------------------
+> t < 800 ms                                             0 (  0%)
+> 800 ms < t < 1200 ms                                   0 (  0%)
+> t > 1200 ms                                            0 (  0%)
+> failed                                                 1 (100%)
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100,0%)
+ound 500
+================================================================================
+
+Reports generated in 3s.
+Please open the following file: I:\Dokumente 4TB\HTL\5 Klasse\BAP\sj2324-5xhif-bap-performance-testing-David-vie21\todo_test\target\gatling\yourgatlingsimulation-20240120152743908\index.html
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  49.574 s
+[INFO] Finished at: 2024-01-20T16:28:06+01:00
+[INFO] ------------------------------------------------------------------------
+```
+
+
+### Now in Docker
+
+I added to the compose file 
+
+```bash
+COPY --from=denvazh/gatling:3.1.2 /opt/gatling/lib /gatling
+
+
+/app # mvn gatling:test -Dgatling.simulationClass=YourGatlingSimulation
+/bin/sh: mvn: not found
+```
+
+### maven and gatling install in dockerfile
+
+```bash
+RUN apk add --no-cache maven
+COPY --from=denvazh/gatling:3.1.2 /opt/gatling/lib /gatling
+```
+
+### failed
+```bash
+2024-04-12 19:06:47 [INFO] BUILD FAILURE
+2024-04-12 19:06:47 [ERROR] The goal you specified requires a project to execute but there is no POM in this directory (/app). Please verify you invoked Maven from the correct directory. -> [Help 1]
+```
+
+### also pom.xml mitkopieren
+
+```bash
+COPY target/todo_test-0.0.1-SNAPSHOT.jar pom.xml /app/
+
+```
+### api and gatling spearated execute
+
+```bash
+CMD ["java", "-cp", "app.jar", "com.example.todo_test"]
+CMD ["java", "-jar", "app.jar"]
+ENTRYPOINT ["mvn", "gatling:test", "-Dgatling.simulationClass=YourGatlingSimulation"]
+```
+### failed
+```bash
+BUILD FAILURE
+2024-04-12 19:21:12 [INFO] ------------------------------------------------------------------------
+2024-04-12 19:21:12 [INFO] Total time:  6.623 s
+2024-04-12 19:21:12 [INFO] Finished at: 2024-04-12T17:21:12Z
+2024-04-12 19:21:12 [INFO] ------------------------------------------------------------------------
+2024-04-12 19:21:12 [ERROR] Unknown lifecycle phase "java". You must specify a valid lifecycle phase or a goal in the format <plugin-prefix>:<goal> or <plugin-group-id>:<plugin-artifact-id>[:<plugin-version>]:<goal>. Available lifecycle phases are: validate, initialize, generate-sources, process-sources, generate-resources, process-resources, compile, process-classes, generate-test-sources, process-test-sources, generate-test-resources, process-test-resources, test-compile, process-test-classes, test, prepare-package, package, pre-integration-test, integration-test, post-integration-test, verify, install, deploy, pre-clean, clean, post-clean, pre-site, site, post-site, site-deploy. -> [Help 1]
+2024-04-12 19:21:12 [ERROR]
+```
+
+
+### words
+after multibles try and it worked, now i had to copy the simulation file too
+
+```bash
+COPY src/test/scala/YourGatlingSimulation.scala /app/src/test/scala/YourGatlingSimulation.scala 
+```
+
+```bash
+
+Simulation YourGatlingSimulation started...
+
+================================================================================
+2024-04-12 17:56:08                                           5s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=14     KO=0     )
+> PostModel                                                (OK=1      KO=0     )
+> GetID                                                    (OK=10     KO=0     )
+> GetAll                                                   (OK=1      KO=0     )
+> Startpage                                                (OK=1      KO=0     )
+> getTitel                                                 (OK=1      KO=0     )
+
+---- POST ----------------------------------------------------------------------
+[--------------------------------------------------------------------------]  0%
+          waiting: 0      / active: 1      / done: 0     
+---- YourScenario --------------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1     
+================================================================================
+
+17:56:11.091 [gatling-http-1-3][WARN ][StatsProcessor.scala:114] i.g.h.e.r.DefaultStatsProcessor - Request 'GetModel_after_Post' failed for user 2: status.find.in(200,201,202,203,204,205,206,207,208,209,304), found 404
+
+================================================================================
+2024-04-12 17:56:11                                           7s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=14     KO=1     )
+> PostModel                                                (OK=1      KO=0     )
+> GetID                                                    (OK=10     KO=0     )
+> GetAll                                                   (OK=1      KO=0     )
+> Startpage                                                (OK=1      KO=0     )
+> getTitel                                                 (OK=1      KO=0     )
+> GetModel_after_Post                                      (OK=0      KO=1     )
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+
+---- POST ----------------------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1     
+---- YourScenario --------------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1     
+================================================================================
+
+Simulation YourGatlingSimulation completed in 5 seconds
+Parsing log file(s)...
+Parsing log file(s) done
+Generating reports...
+
+================================================================================
+---- Global Information --------------------------------------------------------
+> request count                                         15 (OK=14     KO=1     )
+> min response time                                      8 (OK=8      KO=10    )
+> max response time                                    623 (OK=623    KO=10    )
+> mean response time                                   102 (OK=108    KO=10    )
+> std deviation                                        198 (OK=203    KO=0     )
+> response time 50th percentile                         16 (OK=16     KO=10    )
+> response time 75th percentile                         31 (OK=36     KO=10    )
+> response time 95th percentile                        591 (OK=594    KO=10    )
+> response time 99th percentile                        617 (OK=617    KO=10    )
+> mean requests/sec                                    2.5 (OK=2.333  KO=0.167 )
+---- Response Time Distribution ------------------------------------------------
+> t < 800 ms                                            14 ( 93%)
+> 800 ms < t < 1200 ms                                   0 (  0%)
+> t > 1200 ms                                            0 (  0%)
+> failed                                                 1 (  7%)
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+================================================================================
+
+Reports generated in 0s.
+Please open the following file: /app/target/gatling/yourgatlingsimulation-20240412175603829/index.html
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  02:08 min
+[INFO] Finished at: 2024-04-12T17:56:11Z
+[INFO] ------------------------------------------------------------------------
+```
+
+## 3.2 Gatling Counter + Prometeues
+
+I added a counter entpoint to it for Promethues
+
+```java
+
+ static final MeterRegistry meterRegistry = new SimpleMeterRegistry();
+    static final Counter requests = Counter.builder("counterTest")
+            .tags("type", "increment").register(meterRegistry);
+    @GetMapping("/counterIncrease")
+    public double increaseCounter() {
+        requests.increment();
+        //++counter;
+        //System.out.println(counter);
+        System.out.println(requests);
+        return requests.count();
+    }
+
+@Configuration
+public class MeterRegistryConfig {
+
+    @Bean
+    public MeterRegistry meterRegistry() {
+        return new SimpleMeterRegistry();
+    }
+}
+```
+
+and a new Simulation
+
+```java
+class YourGatlingSimulation_Counter extends Simulation {
+
+  val httpProtocol = http.baseUrl("http://localhost:8080")
+
+    val scn = scenario("Scenario_Counter")
+      .exec(http("counterIncrease")
+        .get("/increaseCounter"))
+      .repeat(10) {
+        exec(http("increaseCounter")
+          .get("/counterIncrease"))
+      }
+
+  setUp(
+    scn.inject(atOnceUsers(1)).protocols(httpProtocol),
+  )
+}
+```
+
+![](/load/05%20CounterIncreasTest.PNG)
+
+### Run Gatling Sim for Counter Test
+
+## 4. Grafana
+
+Docker Compose
+```bash
+
+grafana:
+      image: grafana/grafana:latest
+      depends_on:
+        - prometheus
+      volumes:
+        - ./grafana/data:/var/lib/grafana
+      ports:
+        - "3000:3000"
+      networks: 
+        - prometheus-net
+```
+
+
+![](/load/04%20grafana_prometheus.PNG)
+
+
+### 4.2 Counter Test
+![](/load/06%20_Grafana_CounterIncreasTest.PNG)
+
+
+Simulation YourGatlingSimulation_Counter started...
+12:40:38.258 [gatling-http-1-2][WARN ][StatsProcessor.scala:114] i.g.h.e.r.DefaultStatsProcessor - Request 'counterIncrease' failed for user 1: status.find.in(200,201,202,203,204,205,206,207,208,209,304), found 404
+
+================================================================================
+2024-04-13 12:40:38                                           1s elapsed
+---- Requests ------------------------------------------------------------------
+> Global                                                   (OK=10     KO=1     )
+> counterIncrease                                          (OK=0      KO=1     )
+> increaseCounter                                          (OK=10     KO=0     )
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+
+---- Scenario_Counter ----------------------------------------------------------
+[##########################################################################]100%
+          waiting: 0      / active: 0      / done: 1     
+================================================================================
+
+Simulation YourGatlingSimulation_Counter completed in 0 seconds
+Parsing log file(s)...
+Parsing log file(s) done
+Generating reports...
+
+================================================================================
+---- Global Information --------------------------------------------------------
+> request count                                         11 (OK=10     KO=1     )
+> min response time                                      5 (OK=5      KO=121   )
+> max response time                                    121 (OK=29     KO=121   )
+> mean response time                                    20 (OK=10     KO=121   )
+> std deviation                                         32 (OK=7      KO=0     )
+> response time 50th percentile                          9 (OK=8      KO=121   )
+> response time 75th percentile                         13 (OK=11     KO=121   )
+> response time 95th percentile                         75 (OK=23     KO=121   )
+> response time 99th percentile                        112 (OK=28     KO=121   )
+> mean requests/sec                                     11 (OK=10     KO=1     )
+---- Response Time Distribution ------------------------------------------------
+> t < 800 ms                                            10 ( 91%)
+> 800 ms < t < 1200 ms                                   0 (  0%)
+> t > 1200 ms                                            0 (  0%)
+> failed                                                 1 (  9%)
+---- Errors --------------------------------------------------------------------
+> status.find.in(200,201,202,203,204,205,206,207,208,209,304), f      1 (100.0%)
+ound 404
+================================================================================
+
+Reports generated in 0s.
+Please open the following file: /app/target/gatling/yourgatlingsimulation-counter-20240413124036695/index.html
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:16 min
+[INFO] Finished at: 2024-04-13T12:40:39Z
+[INFO] ------------------------------------------------------------------------
+
+
+![](/load/07%20_Grafana_CounterIncreasTest_Gatling.PNG)
+
+
+
