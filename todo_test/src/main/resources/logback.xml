@@ -1,0 +1,23 @@
+<!--<appender name="logstash" class="net.logstash.logback.appender.LogstashTcpSocketAppender">-->
+<!--  <destination>logging:5000</destination>-->
+<!--  <encoder class="net.logstash.logback.encoder.LogstashEncoder" />-->
+<!--</appender>-->
+
+<!--<root level="INFO">-->
+<!--  <appender-ref ref="logstash" />-->
+<!--  &lt;!&ndash; Optional: Weiterhin Log-Nachrichten auf der Konsole anzeigen &ndash;&gt;-->
+<!--  <appender-ref ref="CONSOLE" />-->
+<!--</root>-->
+
+<Configuration>
+<Appenders>
+  <Socket name="Socket" host="logging" port="5000">
+    <JsonLayout compact="true" eventEol="true" />
+  </Socket>
+</Appenders>
+<Loggers>
+  <Root level="info">
+    <AppenderRef ref="Socket"/>
+  </Root>
+</Loggers>
+</Configuration>

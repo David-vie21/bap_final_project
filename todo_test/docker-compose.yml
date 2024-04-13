@@ -1,0 +1,102 @@
+version: "3.9"
+
+services:
+  prometheus:
+    user: root
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/data:/prometheus
+    
+    networks:
+      - prometheus-net
+
+  database:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    cpus: 2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: BAPTest
+    networks:
+      prometheus-net:
+        aliases:
+          - database
+
+
+  java-api:
+    build: .
+    #image: todo_test 
+    ports:
+      - "8080:8080"
+    networks:
+      prometheus-net:
+        aliases:
+          - api
+    depends_on:
+      -  database
+    cpus: 2
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/BAPTest
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+  grafana:
+      image: grafana/grafana:latest
+      depends_on:
+        - prometheus
+      volumes:
+        - ./grafana/data:/var/lib/grafana
+      ports:
+        - "3000:3000"
+      networks: 
+        - prometheus-net
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.2
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logstash/config:/usr/share/logstash/pipeline
+    environment:
+      - "LOGSTASH_JAVA_OPTS=-Xmx256m -Xms256m"
+    networks:
+      prometheus-net:
+        aliases:
+          - logging
+
+
+  kibana:
+      image: docker.elastic.co/kibana/kibana:8.13.2
+      ports:
+        - "5601:5601"
+      environment:
+        - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+      networks:
+        prometheus-net:
+          aliases:
+            - kibana
+      depends_on:
+        - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    ports:
+      - "9200:9200"
+    environment:
+      ES_DISCOVERY_TYPE: single-node
+      ES_HTTP_PORT: 9200
+    networks:
+      prometheus-net:
+          aliases:
+            - elasticsearch
+
+
+networks:
+  prometheus-net:
+
+
