@@ -1,17 +1,22 @@
 version: "3.9"
 
+networks:
+  prometheus-net:
+
+
+
 services:
-  prometheus:
-    user: root
-    image: prom/prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/data:/prometheus
+  # prometheus:
+  #   user: root
+  #   image: prom/prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml
+  #     - ./prometheus/data:/prometheus
     
-    networks:
-      - prometheus-net
+  #   networks:
+  #     - prometheus-net
 
   database:
     image: postgres:15-alpine
@@ -45,16 +50,16 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
 
-  grafana:
-      image: grafana/grafana:latest
-      depends_on:
-        - prometheus
-      volumes:
-        - ./grafana/data:/var/lib/grafana
-      ports:
-        - "3000:3000"
-      networks: 
-        - prometheus-net
+  # grafana:
+  #     image: grafana/grafana:latest
+  #     depends_on:
+  #       - prometheus
+  #     volumes:
+  #       - ./grafana/data:/var/lib/grafana
+  #     ports:
+  #       - "3000:3000"
+  #     networks: 
+  #       - prometheus-net
 
   logstash:
     image: docker.elastic.co/logstash/logstash:8.13.2
@@ -75,6 +80,8 @@ services:
       ports:
         - "5601:5601"
       environment:
+        - elasticsearch.url= http://elasticsearch:9200?ssl.verificationMode=none
+
         - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
       networks:
         prometheus-net:
@@ -82,11 +89,20 @@ services:
             - kibana
       depends_on:
         - elasticsearch
+      # volumes:
+      #   - ./kibana.yml:/usr/share/kibana/config/kibana.yml
 
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
     ports:
       - "9200:9200"
+    # limits:
+    #   memory: 14000M
+    #reservations:
+     # memory: 20M
+    volumes:
+        - ./elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+
     environment:
       ES_DISCOVERY_TYPE: single-node
       ES_HTTP_PORT: 9200
@@ -94,9 +110,5 @@ services:
       prometheus-net:
           aliases:
             - elasticsearch
-
-
-networks:
-  prometheus-net:
 
 

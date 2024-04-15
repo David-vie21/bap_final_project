@@ -1,0 +1,17 @@
+{
+	"ulid": "01HVH51W1CA8934BQAG6TT5V4C",
+	"minTime": 1713024000000,
+	"maxTime": 1713031200000,
+	"stats": {
+		"numSamples": 36284,
+		"numSeries": 133,
+		"numChunks": 259
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01HVH51W1CA8934BQAG6TT5V4C"
+		]
+	},
+	"version": 1
+}

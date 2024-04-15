@@ -1,0 +1,15 @@
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/base.xml"/>
+    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+      <destination>logstash:5000</destination>
+      <encoder class="net.logstash.logback.encoder.LogstashEncoder" />
+    </appender>
+
+    <logger name="com.example.todo_test" level="INFO" additivity="false">
+      <appender-ref ref="LOGSTASH" />
+    </logger>
+
+    <root level="INFO">
+      <appender-ref ref="LOGSTASH" />
+    </root>
+  </configuration>
