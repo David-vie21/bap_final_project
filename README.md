@@ -30,10 +30,11 @@ I will use an old java api from an internship - todo_test api
 
 The API is an Todo list with the endpoints:
 - /getAll
-- /getId
-- /getTitle
-- /Del/Id
-- /patch/ID
+- /getId/{Id}
+- /getTitle/{title}
+- /Del/{Id}
+- /patch/{Id}
+- /counterIncrease
 
 ### dockerize the api:
 ```bash
@@ -137,6 +138,10 @@ I had to change the prometheus.yml file because the metrixes got exposed to /act
 ### Target
 ![](/load/01%20prometheus%20target%20.PNG)
 ### Graph
+
+http_server_requests_seconds_count{exception="None", instance="api:8080", job="spring-boot-app", method="GET", outcome="SUCCESS", status="200", uri="/counterIncrease"}
+
+
 ![](/load/02%20prometheus%20graph.PNG)
 
 ## 3. Gatling
@@ -921,3 +926,148 @@ f4dbb117fd15   todo_test-java-api-1        0.25%     251.7MiB / 12.45GiB   1.97%
 
 
 ##### ich habe alles anderen prozesse auf meinem PC geschlossen aber ich habe immer noch nicht genug memory
+
+
+## Try only Logging - without other Services
+maybe i should have changed it to an api without an db
+I tried only run the logging services but same error:
+
+
+```bash
+
+max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144];
+```
+because of that i try:
+
+```bash
+PS I:\Dokumente 4TB\HTL\5 Klasse\BAP\Task_final_semester\bap_final_project\todo_test> wsl -d docker-desktop sysctl -w vm.max_map_count=262144
+vm.max_map_count = 262144
+```
+Check: 
+
+wsl -d docker-desktop cat /proc/sys/vm/max_map_count
+
+## Works
+
+### Get Token for Kibana:
+bin\elasticsearch-create-enrollment-token --scope kibana
+Copy the code from the Kibana server or run bin\kibana-verification-code.bat to retrieve it.
+
+
+
+## Cert problems:
+I have to create a certificate, so i add 3 files:
+create-certs.yml:
+
+```bash
+version: '2.2'
+services:
+  create_certs:
+    container_name: create_certs
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    command: >
+      bash -c '
+        if [[ ! -f /certs/bundle.zip ]]; then
+          bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
+          unzip /certs/bundle.zip -d /certs; 
+        fi;
+        chown -R 1000:0 /certs
+      '
+    user: "0"
+    working_dir: /usr/share/elasticsearch
+    volumes: ['certs:/certs', '.:/usr/share/elasticsearch/config/certificates']
+volumes: {"certs"}
+```
+.env:
+
+```bash
+
+COMPOSE_PROJECT_NAME=es 
+CERTS_DIR=/usr/share/elasticsearch/config/certificates 
+ELASTIC_PASSWORD=admin
+```
+
+instances.yml
+```bash
+instances:
+  - name: es01
+    dns:
+      - es01 
+      - localhost
+    ip:
+      - 127.0.0.1
+
+```
+
+
+and change the docker compose:
+
+elasticsearch:
+  container_name: elasticsearch
+  image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+  environment:
+
+    - node.name=elasticsearch
+    - discovery.seed_hosts=elasticsearch
+    - cluster.initial_master_nodes=elasticsearch
+    - ELASTIC_PASSWORD=$ELASTIC_PASSWORD 
+    - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    - xpack.license.self_generated.type=trial 
+    - xpack.security.enabled=true
+    - xpack.security.http.ssl.enabled=true
+    - xpack.security.http.ssl.key=$CERTS_DIR/elasticsearch/elasticsearch.key
+    - xpack.security.http.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+    - xpack.security.http.ssl.certificate=$CERTS_DIR/elasticsearch/elasticsearch.crt
+    - xpack.security.transport.ssl.enabled=true
+    - xpack.security.transport.ssl.verification_mode=certificate 
+    - xpack.security.transport.ssl.certificate_authorities=$CERTS_DIR/ca/ca.crt
+    - xpack.security.transport.ssl.certificate=$CERTS_DIR/elasticsearch/elasticsearch.crt
+    - xpack.security.transport.ssl.key=$CERTS_DIR/elasticsearch/elasticsearch.key
+  volumes: ['data01:/usr/share/elasticsearch/data', 'certs:$CERTS_DIR']
+  ports:
+    - 9200:9200
+  healthcheck:
+    test: curl --cacert $CERTS_DIR/ca/ca.crt -s https://localhost:9200 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
+    interval: 30s
+    timeout: 10s
+    retries: 5
+  networks:
+    prometheus-net:
+        aliases:
+          - elasticsearch
+
+  
+  
+  wait_until_ready:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.1
+    command: /usr/bin/true
+    depends_on: {"elasticsearch": {"condition": "service_healthy"}}
+
+
+volumes: {"data01", "data02", "certs"}
+
+
+#### I deleted the secound node because i dont need it
+
+so we create the cert service:
+docker-compose -f create-certs.yml run --rm create_certs
+
+
+
+### after a few other tries i disabled all certs
+
+elasticsearch.yml:
+
+and Agents
+xpack.security.http.ssl:
+  enabled: false
+  #keystore.path: certs/http.p12
+
+ // Enable encryption and mutual authentication between cluster nodes
+xpack.security.transport.ssl:
+  enabled: false
+  verification_mode: none
+
+
+### i got it up and running but there are no data
+![](load/09_Kibana_Index.PNG)
