@@ -956,6 +956,7 @@ Copy the code from the Kibana server or run bin\kibana-verification-code.bat to 
 
 
 ## Cert problems:
+##  i want to create a selpf-createt-ca
 I have to create a certificate, so i add 3 files:
 create-certs.yml:
 
@@ -1071,3 +1072,40 @@ xpack.security.transport.ssl:
 
 ### i got it up and running but there are no data
 ![](load/09_Kibana_Index.PNG)
+
+
+# After "Final Presentation" on 16.4.24 UE 3
+## Theorie
+### Storage Elastic
+Logs werden in Docomenten form gespeicher, diese werden "indexsiert" in meinem BSP: index => "spring-logs-%{+YYYY.MM.dd}"
+Die indexes fassen es nach einheiten zusammen, also wir können z.B. für einzellene anwendungen indexes vergeben oder auch innerhalb einer anleitung aufteilen. Also z.B. Infos, Errors, Warning. Aber das kann man bei der VollTextSearch sovieso filtern.
+
+Elastic teile die Datein in Shards auf, damit kann man es horizontal skalieren, man kan die Shards auf einzellne Konten verteilen um die ausfall sicherheit zu verbessern. In meinem Fall nicht da ich nur einen Knoten habe.
+
+ElasticSearch unterschützt Retention Policies mechanismen, so können alte daten gelöcht werden um speicherplatz zu sparen
+
+
+### FullTextSearch:
+Mit der VollTextSuche analysirt und durchsucht Elastic struckturieret und unstruckturieret daten.
+Tokenisierung: Bevor ein Doc gespeichert wird, wird es auf Token aufgeteilt. "2024-16-04-12-16: Create erfolgreich" wird zu "2024-16-04-12-16:" "Create" "erfolgreich" 
+
+Analyse Pipeline:
+Nach dem der Text auf token aufgeteil wurde durchläuft er eine Analyse Pipeline. Hier kann man customized filtern. Man kann z.b. alles auf klein buchstaben umwandlern oder wörter umwandeln. Hin und wieder werden irelawannte bindewörter enfernt also bei dem BSP von vorher, wäre z.B. gewesen "Create war erfolgreich"
+der log gewesen, dann hätte man das "war" rausfiltern können
+
+Inverted Index: Wichtige infos(wörter/Token) werden um index(inverted) gespeichert und das doc als value des index
+Das ermöglicht efficentere Suchen.
+
+
+Suchanfrage:
+Suchanfragen werde wie die Logs selber auf token aufgeteilt und dann werden die besten ergebnisse gesucht. Es wird die relevan bewertet wie: übereinstimmung, häufichkeit und andere gewichtete faktoren
+
+Return: 
+Basierend auf der Relavanbewertung gib elasticsearch die "richtigen" docs zurück
+
+
+### Zusammenarbeit Kibana ElasticSearch:
+
+
+ElasticSearch ist das Herzstück des Elastic Stacks. auf dem Service läuft die Lucene Search. Kibana visualisiert und analysiert die Docs und Ergebnise von Elastic Search
+Der Docoment Store ist auf ElasticSearch, dort werden die Daten gespeichert. ElasticSearch kann auf mehreren Knoten laufen für Redundanz und ausfall sicherheit. Dann muss es einen Master-Knoten geben der als Loadbalancer fungiert und alles verteilt und regelt. und als Schnittstelle agiert.
