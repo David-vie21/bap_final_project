@@ -1002,6 +1002,7 @@ instances:
 
 
 and change the docker compose:
+```bash
 
 elasticsearch:
   container_name: elasticsearch
@@ -1046,12 +1047,16 @@ elasticsearch:
 
 
 volumes: {"data01", "data02", "certs"}
+```
 
 
 #### I deleted the secound node because i dont need it
 
 so we create the cert service:
+```bash
+
 docker-compose -f create-certs.yml run --rm create_certs
+```
 
 
 
@@ -1059,7 +1064,10 @@ docker-compose -f create-certs.yml run --rm create_certs
 
 elasticsearch.yml:
 
+
 and Agents
+```bash
+
 xpack.security.http.ssl:
   enabled: false
   #keystore.path: certs/http.p12
@@ -1068,6 +1076,7 @@ xpack.security.http.ssl:
 xpack.security.transport.ssl:
   enabled: false
   verification_mode: none
+```
 
 
 ### i got it up and running but there are no data
@@ -1075,7 +1084,26 @@ xpack.security.transport.ssl:
 
 
 # After "Final Presentation" on 16.4.24 UE 3
-## Theorie
+## Proof of logging connaction. 
+Wir haben es ja in der Stunde nicht mehr hochgefahren, deshalb dachte ich das ich die logs hier rein geben, auch wenn ich den index unter Kibana/Discover nicht finde
+
+```bash
+
+2024-04-16 16:37:01 [2024-04-16T14:37:01,608][INFO ][logstash.agent           ] Successfully started Logstash API endpoint {:port=>9600, :ssl_enabled=>false}
+
+2024-04-16 16:38:30 [2024-04-16T14:38:30,542][INFO ][logstash.outputs.elasticsearchmonitoring][.monitoring-logstash] New Elasticsearch output {:class=>"LogStash::Outputs::ElasticSearchMonitoring", :hosts=>["http://elasticsearch:9200"]}
+2024-04-16 16:38:30 [2024-04-16T14:38:30,557][INFO ][logstash.outputs.elasticsearchmonitoring][.monitoring-logstash] Elasticsearch pool URLs updated {:changes=>{:removed=>[], :added=>[http://elasticsearch:9200/]}}
+2024-04-16 16:38:30 [2024-04-16T14:38:30,595][WARN ][logstash.outputs.elasticsearchmonitoring][.monitoring-logstash] Restored connection to ES instance {:url=>"http://elasticsearch:9200/"}
+2024-04-16 16:38:30 [2024-04-16T14:38:30,598][INFO ][logstash.outputs.elasticsearchmonitoring][.monitoring-logstash] Elasticsearch version determined (8.13.2) {:es_version=>8}
+
+2024-04-16 16:38:50 [2024-04-16T14:38:50.666+00:00][INFO ][plugins.observability] Installing SLO ingest pipeline [.slo-observability.sli.pipeline-v3]
+2024-04-16 16:38:52 [2024-04-16T14:38:52.791+00:00][INFO ][plugins.observabilityAIAssistant.service] Successfully set up index assets
+
+```
+
+
+
+## Theorie 
 ### Storage Elastic
 Logs werden in Docomenten form gespeicher, diese werden "indexsiert" in meinem BSP: index => "spring-logs-%{+YYYY.MM.dd}"
 Die indexes fassen es nach einheiten zusammen, also wir können z.B. für einzellene anwendungen indexes vergeben oder auch innerhalb einer anleitung aufteilen. Also z.B. Infos, Errors, Warning. Aber das kann man bei der VollTextSearch sovieso filtern.
@@ -1109,3 +1137,6 @@ Basierend auf der Relavanbewertung gib elasticsearch die "richtigen" docs zurüc
 
 ElasticSearch ist das Herzstück des Elastic Stacks. auf dem Service läuft die Lucene Search. Kibana visualisiert und analysiert die Docs und Ergebnise von Elastic Search
 Der Docoment Store ist auf ElasticSearch, dort werden die Daten gespeichert. ElasticSearch kann auf mehreren Knoten laufen für Redundanz und ausfall sicherheit. Dann muss es einen Master-Knoten geben der als Loadbalancer fungiert und alles verteilt und regelt. und als Schnittstelle agiert.
+
+
+
