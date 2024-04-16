@@ -1071,3 +1071,6 @@ xpack.security.transport.ssl:
 
 ### i got it up and running but there are no data
 ![](load/09_Kibana_Index.PNG)
+
+
+
