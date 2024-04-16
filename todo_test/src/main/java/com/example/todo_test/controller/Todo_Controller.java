@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 public class Todo_Controller {
     @Autowired
     private ModelService ms;
-    @Autowired
     private static final Logger logger = LoggerFactory.getLogger(Todo_Controller.class);
 
     private int counter = 0;

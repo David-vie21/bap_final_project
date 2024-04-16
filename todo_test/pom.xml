@@ -104,17 +104,29 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>1.7.36</version>
+		</dependency>
+
+
+		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.2.3</version> <!-- Oder eine neuere Version verwenden -->
+			<version>1.4.5</version> <!-- Oder eine neuere Version verwenden -->
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-core</artifactId>
+			<version>1.4.5</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/net.logstash.logback/logstash-logback-encoder -->
-		<dependency>
-			<groupId>net.logstash.logback</groupId>
-			<artifactId>logstash-logback-encoder</artifactId>
-			<version>7.4</version>
-		</dependency>
+<!--		<dependency>-->
+<!--			<groupId>net.logstash.logback</groupId>-->
+<!--			<artifactId>logstash-logback-encoder</artifactId>-->
+<!--			<version>7.4</version>-->
+<!--		</dependency>-->
 
 
 

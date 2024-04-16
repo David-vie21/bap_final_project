@@ -1084,7 +1084,7 @@ xpack.security.transport.ssl:
 
 
 # After "Final Presentation" on 16.4.24 UE 3
-## Proof of logging connaction. 
+## Proof of logging connection. 
 Wir haben es ja in der Stunde nicht mehr hochgefahren, deshalb dachte ich das ich die logs hier rein geben, auch wenn ich den index unter Kibana/Discover nicht finde
 
 ```bash
@@ -1099,6 +1099,98 @@ Wir haben es ja in der Stunde nicht mehr hochgefahren, deshalb dachte ich das ic
 2024-04-16 16:38:50 [2024-04-16T14:38:50.666+00:00][INFO ][plugins.observability] Installing SLO ingest pipeline [.slo-observability.sli.pipeline-v3]
 2024-04-16 16:38:52 [2024-04-16T14:38:52.791+00:00][INFO ][plugins.observabilityAIAssistant.service] Successfully set up index assets
 
+```
+
+## Troubleshoot
+test connection betwenn logstash und elasticsearch container:
+```bash
+
+$ curl http://elasticsearch:9200
+{
+  "name" : "32b408ddbca4",
+  "cluster_name" : "docker-cluster",
+  "cluster_uuid" : "aPdYzVi5QGK0mxE4Dd-8Tw",
+  "version" : {
+    "number" : "8.13.2",
+    "build_flavor" : "default",
+    "build_type" : "docker",
+    "build_hash" : "16cc90cd2d08a3147ce02b07e50894bc060a4cbf",
+    "build_date" : "2024-04-05T14:45:26.420424304Z",
+    "build_snapshot" : false,
+    "lucene_version" : "9.10.0",
+    "minimum_wire_compatibility_version" : "7.17.0",
+    "minimum_index_compatibility_version" : "7.0.0"
+  },
+  "tagline" : "You Know, for Search"
+} 
+
+```
+connection works !
+
+
+elasticsearch health:
+http://localhost:9200/_cluster/health?pretty
+
+```bash
+{
+"cluster_name": "docker-cluster",
+"status": "green",
+"timed_out": false,
+"number_of_nodes": 1,
+"number_of_data_nodes": 1,
+"active_primary_shards": 28,
+"active_shards": 28,
+"relocating_shards": 0,
+"initializing_shards": 0,
+"unassigned_shards": 0,
+"delayed_unassigned_shards": 0,
+"number_of_pending_tasks": 0,
+"number_of_in_flight_fetch": 0,
+"task_max_waiting_in_queue_millis": 0,
+"active_shards_percent_as_number": 100
+}
+```
+
+
+#### Test Logger:
+I changed the logging destination to a log file to see if my logging works:
+
+```bash
+<configuration>
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/application.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>logs/application-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <maxFileSize>10MB</maxFileSize>
+    </rollingPolicy>
+    <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+      <pattern>%date %level [%thread] [%file:%line] %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="com.example.todo_test" level="INFO" additivity="false">
+    <appender-ref ref="FILE" />
+  </logger>
+
+  <root level="INFO">
+    <appender-ref ref="FILE" />
+  </root>
+</configuration>
+```
+
+Out put in file:
+```bash
+
+2024-04-16 17:15:18,266 INFO [http-nio-8080-exec-1] [FrameworkServlet.java:547] Completed initialization in 1 ms
+2024-04-16 17:15:18,304 INFO [http-nio-8080-exec-1] [Todo_Controller.java:55] Counter increased. Current count: 1.0
+2024-04-16 17:17:12,835 INFO [http-nio-8080-exec-5] [Todo_Controller.java:55] Counter increased. Current count: 2.0
+2024-04-16 17:17:13,006 INFO [http-nio-8080-exec-6] [Todo_Controller.java:55] Counter increased. Current count: 3.0
+2024-04-16 17:17:13,220 INFO [http-nio-8080-exec-4] [Todo_Controller.java:55] Counter increased. Current count: 4.0
+2024-04-16 17:17:13,540 INFO [http-nio-8080-exec-7] [Todo_Controller.java:55] Counter increased. Current count: 5.0
+2024-04-16 17:17:15,551 INFO [http-nio-8080-exec-8] [Todo_Controller.java:89] GetID: 1
+2024-04-16 17:17:16,291 INFO [http-nio-8080-exec-9] [Todo_Controller.java:89] GetID: 1
+2024-04-16 17:17:16,808 INFO [http-nio-8080-exec-10] [Todo_Controller.java:89] GetID: 1
+2024-04-16 17:17:17,311 INFO [http-nio-8080-exec-1] [Todo_Controller.java:89] GetID: 1
 ```
 
 
